@@ -1,0 +1,256 @@
+import maya.cmds as cmds
+
+C_name = 'lion:'
+Ctrl_name = 'face_main_ctrl.'
+
+Ani_shapeNames = [
+    'UpperLipRaiserFront',
+    'UpperLipRaiserBack',
+    'Temporalis',
+    'SquintUpper',
+    'SquintLower',
+    'SharpLipPuller',
+    'Procerus',
+    'PlatysmaOuter',
+    'PlatysmaInner',
+    'OuterBrowRaiser',
+    'NostrilDilator',
+    'NostrilCompressor',
+    'NoseWrinklerNoseBridge',
+    'NoseWrinklerLipFront',
+    'NoseWrinkler',
+    'NoseTenseUpper',
+    'NoseTenseLower',
+    'NoseStretch',
+    'NoseSide',
+    'NoseOuterUp',
+    'MouthSideUpper',
+    'MouthSideLower',
+    'LowerLipDepressorFront',
+    'LowerLipDepressorBack',
+    'LipsTogetherUpper',
+    'LipsTogetherLower',
+    'LipsTogether',
+    'LipTightenerUpper',
+    'LipTightenerLower',
+    'LipStretcher',
+    'LipPuckererUpper',
+    'LipPuckererLower',
+    'LipFunnelerUpper',
+    'LipFunnelerLower',
+    'LipCreaseFront',
+    'LipCreaseBack',
+    'LipCornerSqueeze',
+    'LipCornerPuller',
+    'LipCornerDepressor',
+    'LidTightenerUpper',
+    'LidTightenerLower',
+    'JawSwing',
+    'InnerBrowRaiser',
+    'GumMid',
+    'GumFront',
+    'GumBack',
+    'Frontalis',
+    'EyeUp',
+    'EyeOut',
+    'EyeIn',
+    'EyeDown',
+    'Dimpler',
+    'ChinRaiser',
+    'CheekRaiser',
+    'CheekPuffFront',
+    'CheekPuffBack',
+    'BrowLowerer',
+    'ScalpSlide',
+    'JawThrust',
+    'JawOpen',
+
+    # ➕ Added consolidated / axis-based shapes
+    'CheekSlideFrontBack',
+    'CheekSlideFrontBackX',
+    'CheekSlideUpDown',
+    'CheekSlideUpDownX',
+    'CheekPuffBackX',
+    'CheekPuffFrontX',
+    'CleftSqueezeWiden',
+    'CleftSqueezeWidenX',
+    'EarForwardBack',
+    'EarForwardBackX',
+    'EarUpDown',
+    'EarUpDownX',
+    'EarInOutRotation',
+    'EarInOutRotationX',
+    'EyeOpenClosed',
+    'EyeOpenClosedX',
+    'GravityUpDown',
+    'GravityUpDownX',
+    'GravityFrontBack',
+    'GravityFrontBackX',
+    'JawOpenX',
+    'JawThrustX',
+    'LipLowerUpDown',
+    'LipLowerUpDownX',
+    'LipUpperUpDown',
+    'LipUpperUpDownX',
+    'LipLowerSide',
+    'LipLowerSideX',
+    'LipUpperSide',
+    'LipUpperSideX',
+    'LipRollBackLower',
+    'LipRollBackLowerX',
+    'LipRollBackUpper',
+    'LipRollBackUpperX',
+    'LipRollFrontLower',
+    'LipRollFrontLowerX',
+    'LipRollFrontUpper',
+    'LipRollFrontUpperX',
+    'LipRollMidLower',
+    'LipRollMidLowerX',
+    'LipRollMidUpper',
+    'LipRollMidUpperX',
+    'LipFunnelerLowerX',
+    'LipFunnelerUpperX',
+    'EyelidInnerLowerUpDown',
+    'EyelidInnerLowerUpDownX',
+    'EyelidOuterLowerUpDown',
+    'EyelidOuterLowerUpDownX',
+    'MasseterFlexRelax',
+    'MasseterFlexRelaxX',
+    'MouthLowerUpDown',
+    'MouthLowerUpDownX',
+    'MouthUpperUpDown',
+    'MouthUpperUpDownX',
+    'MouthUpperSide',
+    'MouthLowerSide',
+    'MuzzleFatFrontBack',
+    'MuzzleFatFrontBackX',
+    'MuzzleFatUpDown',
+    'MuzzleFatUpDownX',
+    'LipPuffBackUpper',
+    'LipPuffBackUpperX',
+    'LipPuffFrontUpper',
+    'LipPuffFrontUpperX',
+    'NoseUpDown',
+    'NoseUpDownX',
+    'NoseBridgeSlideUpDown',
+    'NoseBridgeSlideUpDownX',
+    'NoseBridgeSlideSide',
+    'NoseBridgeSlideSideX',
+    'NostrilRotation',
+    'NostrilRotationX',
+    'SwallowInOut',
+    'SwallowInOutX',
+    'SwallowUpDown',
+    'SwallowUpDownX',
+    'EyelidInnerUpperRotate',
+    'EyelidOuterUpperRotate',
+    'EyelidInnerUpperUp',
+    'EyelidOuterUpperUp'
+]
+
+
+
+# 🔎 GLOBAL CONTAINER FOR MISSING SHAPES
+MISSING_SHAPES = set()
+
+def animate_shape_keys(shape_list):
+    """Animate each shape group sequentially: 0→value→0."""
+    current_time = 0
+
+    for name in shape_list:
+        # Determine key value
+        if name.endswith('X'):
+            newShape = name[:-1]
+            key_value = -100
+        else:
+            newShape = name
+            key_value = 100
+
+        UL_shapes = UL_check(newShape)
+        Final_shapes = L_R_Check(UL_shapes)
+
+        # Skip animation if nothing was found
+        if not Final_shapes:
+            continue
+
+        key_shape_group(Final_shapes, key_value, current_time)
+        current_time += 10
+
+    print_missing_shapes()
+
+def key_shape_group(shape_list, key_value, start_frame):
+    """Key all shapes in the group at the same time."""
+    for shape in shape_list:
+        cmds.setAttr(shape, 0)
+        cmds.setKeyframe(shape, t=start_frame, v=0)
+
+    for shape in shape_list:
+        cmds.setAttr(shape, key_value)
+        cmds.setKeyframe(shape, t=start_frame + 5, v=key_value)
+
+    for shape in shape_list:
+        cmds.setAttr(shape, 0)
+        cmds.setKeyframe(shape, t=start_frame + 10, v=0)
+
+def reset_all_shapes(shape_list):
+    """Delete all keys and reset all shapes to 0."""
+    all_shapes = []
+
+    for name in shape_list:
+        UL_shapes = UL_check(name.replace('X',''))
+        Final_shapes = L_R_Check(UL_shapes)
+        all_shapes.extend(Final_shapes)
+
+    all_shapes = list(set(all_shapes))
+
+    for shape in all_shapes:
+        if cmds.objExists(shape):
+            try:
+                cmds.cutKey(shape)
+                cmds.setAttr(shape, 0)
+            except:
+                pass
+
+def UL_check(nameUL):
+    """Return list of shapes, converting UL → Lower+Upper"""
+    if nameUL.endswith('UL'):
+        base = nameUL[:-2]
+        return [base + 'Lower', base + 'Upper']
+    return [nameUL]
+
+def L_R_Check(nameLR_list):
+    """Return valid shapes.
+    If center exists → use it
+    Else if L/R exists → use them
+    Else → mark as missing
+    """
+    result_shapes = []
+
+    for shape in nameLR_list:
+        center = C_name + Ctrl_name + shape
+        left   = C_name + Ctrl_name + 'l' + shape
+        right  = C_name + Ctrl_name + 'r' + shape
+
+        if cmds.objExists(center):
+            result_shapes.append(center)
+        elif cmds.objExists(left) or cmds.objExists(right):
+            if cmds.objExists(left):
+                result_shapes.append(left)
+            if cmds.objExists(right):
+                result_shapes.append(right)
+        else:
+            MISSING_SHAPES.add(shape)
+
+    return result_shapes
+
+def print_missing_shapes():
+    """Print all shapes that were not found in the rig."""
+    if not MISSING_SHAPES:
+        print("✅ All shapes were found in the rig.")
+        return
+
+    print("\n⚠️ Shapes NOT found in the rig:")
+    print(sorted(list(MISSING_SHAPES)))
+    
+animate_shape_keys(Ani_shapeNames)
+#reset_all_shapes(Ani_shapeNames)
