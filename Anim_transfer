@@ -1,0 +1,549 @@
+"""
+Face Animation Transfer Tool — lion:face_main_ctrl
+====================================================
+Exports and imports all facial blend shape keyframe data
+from a single control node across Maya scenes.
+
+Usage:
+    # In SOURCE scene:
+    export_face_anim(file_path="C:/anim/face_anim.json")
+
+    # In TARGET scene:
+    import_face_anim(file_path="C:/anim/face_anim.json")
+
+    # Or launch the UI:
+    launch_ui()
+"""
+
+import maya.cmds as cmds
+import json
+
+# ─────────────────────────────────────────────────────────────
+# All known facial attributes on face_main_ctrl
+# Mapped from the UI labels → camelCase attribute names
+# ─────────────────────────────────────────────────────────────
+FACE_ATTRS = [
+    # STICKY LIPS / MOUTH
+    "stickyLips",
+    "MouthUpperSide", "MouthUpperUpDown",
+    "MouthLowerSide", "MouthLowerUpDown",
+
+    # CHIN
+    "lChinRaiser", "rChinRaiser",
+
+    # NECK
+    "lPlatysma", "rPlatysma",
+    "SwallowUpDown", "SwallowInOut",
+
+    # HEAD
+    "ScalpSlide",
+    "lTemporalis", "rTemporalis",
+    "lFrontalis", "rFrontalis",
+    "GravityFrontBack", "GravitySide", "GravityUpDown",
+
+    # EARS
+    "lEarUpDown", "rEarUpDown",
+    "lEarForwardBack", "rEarForwardBack",
+    "lEarInOutRotation", "rEarInOutRotation",
+
+    # BROWS
+    "lInnerBrowRaiser", "rInnerBrowRaiser",
+    "lOuterBrowRaiser", "rOuterBrowRaiser",
+    "lBrowLowerer", "rBrowLowerer",
+    "lProcerus", "rProcerus",
+
+    # EYES
+    "lEyeOpenClosed", "rEyeOpenClosed",
+    "lLidTightenerUpper", "rLidTightenerUpper",
+    "lLidTightenerLower", "rLidTightenerLower",
+    "lSquintUpper", "rSquintUpper",
+    "lSquintLower", "rSquintLower",
+    "lEyelidInnerLowerUpDown", "rEyelidInnerLowerUpDown",
+    "lEyelidOuterLowerUpDown", "rEyelidOuterLowerUpDown",
+    "lEyelidInnerUpperUp", "rEyelidInnerUpperUp",
+    "lEyelidOuterUpperUp", "rEyelidOuterUpperUp",
+    "lEyelidInnerUpperRotate", "rEyelidInnerUpperRotate",
+    "lEyelidOuterUpperRotate", "rEyelidOuterUpperRotate",
+
+    # EYES AIM
+    "lEyeUp", "rEyeUp",
+    "lEyeDown", "rEyeDown",
+    "lEyeIn", "rEyeIn",
+    "lEyeOut", "rEyeOut",
+
+    # IRIS
+    "lPupilDilate", "rPupilDilate",
+    "lIrisScale", "rIrisScale",
+
+    # NOSE
+    "NoseSide", "NoseUpDown",
+    "lNoseWrinkler", "rNoseWrinkler",
+    "lNoseWrinklerNoseBridge", "rNoseWrinklerNoseBridge",
+    "lNoseWrinklerLipFront", "rNoseWrinklerLipFront",
+    "lNostrilDilator", "rNostrilDilator",
+    "lNostrilCompressor", "rNostrilCompressor",
+    "lNostrilRotation", "rNostrilRotation",
+    "lNoseStretch", "rNoseStretch",
+    "lNoseOuterUp", "rNoseOuterUp",
+    "lNoseTenseUpper", "rNoseTenseUpper",
+    "lNoseTenseLower", "rNoseTenseLower",
+    "lCleftSqueezeWiden", "rCleftSqueezeWiden",
+    "NoseBridgeSlideSide", "NoseBridgeSlideUpDown",
+    "lMuzzleFatFrontBack", "rMuzzleFatFrontBack",
+    "lMuzzleFatUpDown", "rMuzzleFatUpDown",
+
+    # CHEEKS
+    "lCheekRaiser", "rCheekRaiser",
+    "lCheekPuffFront", "rCheekPuffFront",
+    "lCheekPuffBack", "rCheekPuffBack",
+    "lCheekSuck", "rCheekSuck",
+    "lCheekSlideFrontBack", "rCheekSlideFrontBack",
+    "lCheekSlideUpDown", "rCheekSlideUpDown",
+
+    # JAW
+    "JawOpen", "JawThrust", "JawSwing",
+    "lMasseterFlexRelax", "rMasseterFlexRelax",
+
+    # LIP CORNERS
+    "lSharpLipPuller", "rSharpLipPuller",
+    "lLipCornerPuller", "rLipCornerPuller",
+    "lDimpler", "rDimpler",
+    "lLipStretcher", "rLipStretcher",
+    "lLipCornerDepressor", "rLipCornerDepressor",
+
+    # LIP MAIN
+    "lUpperLipRaiserFront", "rUpperLipRaiserFront",
+    "lUpperLipRaiserBack", "rUpperLipRaiserBack",
+    "lLowerLipDepressorFront", "rLowerLipDepressorFront",
+    "lLowerLipDepressorBack", "rLowerLipDepressorBack",
+    "lLipPuckererUpper", "rLipPuckererUpper",
+    "lLipPuckererLower", "rLipPuckererLower",
+    "lLipFunnelerUpper", "rLipFunnelerUpper",
+    "lLipFunnelerLower", "rLipFunnelerLower",
+    "lLipTightenerUpper", "rLipTightenerUpper",
+    "lLipTightenerLower", "rLipTightenerLower",
+    "lLipPuffFrontUpper", "rLipPuffFrontUpper",
+    "lLipPuffFrontLower", "rLipPuffFrontLower",
+    "lLipPuffBackUpper", "rLipPuffBackUpper",
+    "lLipPuffBackLower", "rLipPuffBackLower",
+
+    # LIP TWEAKERS
+    "lLipCreaseFront", "rLipCreaseFront",
+    "lLipCreaseBack", "rLipCreaseBack",
+    "lLipRollFrontUpper", "rLipRollFrontUpper",
+    "lLipRollFrontLower", "rLipRollFrontLower",
+    "lLipRollMidUpper", "rLipRollMidUpper",
+    "lLipRollMidLower", "rLipRollMidLower",
+    "lLipRollBackUpper", "rLipRollBackUpper",
+    "lLipRollBackLower", "rLipRollBackLower",
+    "lGumFront", "rGumFront",
+    "lGumMid", "rGumMid",
+    "lGumBack", "rGumBack",
+    "lLipCornerSqueeze", "rLipCornerSqueeze",
+    "LipUpperSide", "LipUpperUpDown",
+    "LipLowerSide", "LipLowerUpDown",
+    "lLipsTogetherUpper", "rLipsTogetherUpper",
+    "lLipsTogetherLower", "rLipsTogetherLower",
+    "lUpperLipCollision", "rUpperLipCollision",
+    "lLipRelax", "rLipRelax",
+]
+
+
+def _get_node(namespace="lion"):
+    """Return the full node name, auto-detecting namespace if needed."""
+    # Strip any trailing colons from namespace input
+    namespace = namespace.strip().rstrip(":")
+
+    # Try exact namespace provided
+    if namespace:
+        with_ns = "{}:face_main_ctrl".format(namespace)
+        if cmds.objExists(with_ns):
+            return with_ns
+
+    # Try without namespace
+    if cmds.objExists("face_main_ctrl"):
+        return "face_main_ctrl"
+
+    # Auto-detect: search all nodes ending in face_main_ctrl
+    matches = cmds.ls("*:face_main_ctrl") or []
+    if matches:
+        print("  Auto-detected node: {}".format(matches[0]))
+        return matches[0]
+
+    cmds.warning("Could not find face_main_ctrl in the scene.")
+    return None
+
+
+def _get_curve_data(node, attr):
+    """Return keyframe data dict for node.attr, or None if no keys."""
+    plug = "{}.{}".format(node, attr)
+    if not cmds.objExists(plug):
+        return None
+
+    anim_curves = cmds.listConnections(plug, type="animCurve", source=True) or []
+    if not anim_curves:
+        return None
+
+    curve = anim_curves[0]
+    keyframes = cmds.keyframe(curve, query=True, timeChange=True, valueChange=True)
+    if not keyframes:
+        return None
+
+    times  = keyframes[0::2]
+    values = keyframes[1::2]
+
+    return {
+        "times":         times,
+        "values":        values,
+        "in_tan_types":  cmds.keyTangent(curve, q=True, inTangentType=True)  or [],
+        "out_tan_types": cmds.keyTangent(curve, q=True, outTangentType=True) or [],
+        "in_angles":     cmds.keyTangent(curve, q=True, inAngle=True)        or [],
+        "out_angles":    cmds.keyTangent(curve, q=True, outAngle=True)       or [],
+        "in_weights":    cmds.keyTangent(curve, q=True, inWeight=True)       or [],
+        "out_weights":   cmds.keyTangent(curve, q=True, outWeight=True)      or [],
+        "pre_infinity":  (cmds.setInfinity(curve, q=True, preInfinite=True)  or ["constant"])[0],
+        "post_infinity": (cmds.setInfinity(curve, q=True, postInfinite=True) or ["constant"])[0],
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# EXPORT
+# ─────────────────────────────────────────────────────────────
+
+def export_face_anim(file_path=None, namespace="lion"):
+    """
+    Export all facial attribute keyframes from face_main_ctrl to a JSON file.
+
+    Args:
+        file_path : output .json path. Opens dialog if None.
+        namespace : rig namespace (default 'lion').
+    """
+    node = _get_node(namespace)
+    if not node:
+        return
+
+    if file_path is None:
+        result = cmds.fileDialog2(
+            fileFilter="JSON Files (*.json);;All Files (*.*)",
+            dialogStyle=2, fileMode=0,
+            caption="Save Face Animation"
+        )
+        if not result:
+            return
+        file_path = result[0]
+
+    anim_data   = {}
+    no_keys     = []
+    not_found   = []
+
+    for attr in FACE_ATTRS:
+        plug = "{}.{}".format(node, attr)
+        if not cmds.objExists(plug):
+            not_found.append(attr)
+            continue
+        data = _get_curve_data(node, attr)
+        if data:
+            anim_data[attr] = data
+        else:
+            no_keys.append(attr)
+
+    with open(file_path, "w") as f:
+        json.dump({"node": node, "attrs": anim_data}, f, indent=2)
+
+    print("\n✔ Face anim exported → {}".format(file_path))
+    print("  Keyed attrs   : {}".format(len(anim_data)))
+    print("  No keys (ok)  : {}".format(len(no_keys)))
+    if not_found:
+        print("  Not on node   : {}".format(", ".join(not_found)))
+
+
+# ─────────────────────────────────────────────────────────────
+# IMPORT
+# ─────────────────────────────────────────────────────────────
+
+def import_face_anim(file_path=None, namespace="lion", offset=0, scale=1.0, replace=True):
+    """
+    Import face animation onto face_main_ctrl in the current scene.
+
+    Args:
+        file_path : .json file to load. Opens dialog if None.
+        namespace : rig namespace in the TARGET scene (default 'lion').
+        offset    : frame offset (default 0).
+        scale     : time scale multiplier (default 1.0).
+        replace   : delete existing keys before applying (default True).
+    """
+    node = _get_node(namespace)
+    if not node:
+        return
+
+    if file_path is None:
+        result = cmds.fileDialog2(
+            fileFilter="JSON Files (*.json);;All Files (*.*)",
+            dialogStyle=2, fileMode=1,
+            caption="Load Face Animation"
+        )
+        if not result:
+            return
+        file_path = result[0]
+
+    with open(file_path, "r") as f:
+        saved = json.load(f)
+
+    anim_data = saved.get("attrs", {})
+    applied   = []
+    skipped   = []
+
+    for attr, data in anim_data.items():
+        plug = "{}.{}".format(node, attr)
+
+        if not cmds.objExists(plug):
+            skipped.append("{} (not found)".format(attr))
+            continue
+        if cmds.getAttr(plug, lock=True):
+            skipped.append("{} (locked)".format(attr))
+            continue
+
+        if replace:
+            cmds.cutKey(plug, clear=True)
+
+        times         = data["times"]
+        values        = data["values"]
+        in_tan_types  = data.get("in_tan_types",  [])
+        out_tan_types = data.get("out_tan_types", [])
+        in_angles     = data.get("in_angles",     [])
+        out_angles    = data.get("out_angles",    [])
+        in_weights    = data.get("in_weights",    [])
+        out_weights   = data.get("out_weights",   [])
+        pre_inf       = data.get("pre_infinity",  "constant")
+        post_inf      = data.get("post_infinity", "constant")
+
+        for i, (t, v) in enumerate(zip(times, values)):
+            new_t = t * scale + offset
+            cmds.setKeyframe(plug, time=new_t, value=v)
+
+            tan_kw = {"time": (new_t, new_t)}
+            if i < len(in_tan_types):  tan_kw["inTangentType"]  = in_tan_types[i]
+            if i < len(out_tan_types): tan_kw["outTangentType"] = out_tan_types[i]
+            cmds.keyTangent(plug, **tan_kw)
+
+            w_kw = {"time": (new_t, new_t)}
+            if i < len(in_angles):   w_kw["inAngle"]   = in_angles[i]
+            if i < len(out_angles):  w_kw["outAngle"]  = out_angles[i]
+            if i < len(in_weights):  w_kw["inWeight"]  = in_weights[i]
+            if i < len(out_weights): w_kw["outWeight"] = out_weights[i]
+            if len(w_kw) > 1:
+                try:
+                    cmds.keyTangent(plug, **w_kw)
+                except Exception:
+                    pass
+
+        anim_curves = cmds.listConnections(plug, type="animCurve", source=True) or []
+        if anim_curves:
+            cmds.setInfinity(anim_curves[0], preInfinite=pre_inf, postInfinite=post_inf)
+
+        applied.append(attr)
+
+    print("\n✔ Face anim imported from {}".format(file_path))
+    print("  Applied : {} attrs".format(len(applied)))
+    if skipped:
+        print("  Skipped : {}".format(", ".join(skipped)))
+
+
+# ─────────────────────────────────────────────────────────────
+# UI
+# ─────────────────────────────────────────────────────────────
+
+def export_face_anim_node(node, file_path=None):
+    """Export using a full node name directly.
+    Saves keyframe data for animated attrs, and static values for non-keyed attrs.
+    """
+    node = node.strip().rstrip(".")
+    if not cmds.objExists(node):
+        cmds.warning("Node not found: {}".format(node))
+        return
+
+    if file_path is None:
+        result = cmds.fileDialog2(
+            fileFilter="JSON Files (*.json);;All Files (*.*)",
+            dialogStyle=2, fileMode=0,
+            caption="Save Face Animation"
+        )
+        if not result:
+            return
+        file_path = result[0]
+
+    anim_data   = {}
+    static_data = {}
+    not_found   = []
+
+    for attr in FACE_ATTRS:
+        plug = "{}.{}".format(node, attr)
+        if not cmds.objExists(plug):
+            not_found.append(attr)
+            continue
+        data = _get_curve_data(node, attr)
+        if data:
+            anim_data[attr] = data
+        else:
+            # Save static value (non-default or any non-zero value worth keeping)
+            try:
+                val = cmds.getAttr(plug)
+                static_data[attr] = val
+            except Exception:
+                pass
+
+    with open(file_path, "w") as f:
+        json.dump({"node": node, "attrs": anim_data, "static": static_data}, f, indent=2)
+
+    print("\n✔ Face anim exported → {}".format(file_path))
+    print("  Keyed attrs  : {}".format(len(anim_data)))
+    print("  Static attrs : {}".format(len(static_data)))
+    if not_found:
+        print("  Not on node  : {}".format(", ".join(not_found)))
+
+
+def import_face_anim_node(node, file_path=None, offset=0, scale=1.0, replace=True):
+    """Import using a full node name directly.
+    Applies keyframe data for animated attrs, and static values for non-keyed attrs.
+    """
+    node = node.strip().rstrip(".")
+    if not cmds.objExists(node):
+        cmds.warning("Node not found: {}".format(node))
+        return
+
+    if file_path is None:
+        result = cmds.fileDialog2(
+            fileFilter="JSON Files (*.json);;All Files (*.*)",
+            dialogStyle=2, fileMode=1,
+            caption="Load Face Animation"
+        )
+        if not result:
+            return
+        file_path = result[0]
+
+    with open(file_path, "r") as f:
+        saved = json.load(f)
+
+    anim_data   = saved.get("attrs", {})
+    static_data = saved.get("static", {})
+    applied     = []
+    applied_static = []
+    skipped     = []
+
+    # ── Apply keyed animation ──
+    for attr, data in anim_data.items():
+        plug = "{}.{}".format(node, attr)
+
+        if not cmds.objExists(plug):
+            skipped.append("{} (not found)".format(attr))
+            continue
+        if cmds.getAttr(plug, lock=True):
+            skipped.append("{} (locked)".format(attr))
+            continue
+
+        if replace:
+            cmds.cutKey(plug, clear=True)
+
+        times         = data["times"]
+        values        = data["values"]
+        in_tan_types  = data.get("in_tan_types",  [])
+        out_tan_types = data.get("out_tan_types", [])
+        in_angles     = data.get("in_angles",     [])
+        out_angles    = data.get("out_angles",    [])
+        in_weights    = data.get("in_weights",    [])
+        out_weights   = data.get("out_weights",   [])
+        pre_inf       = data.get("pre_infinity",  "constant")
+        post_inf      = data.get("post_infinity", "constant")
+
+        for i, (t, v) in enumerate(zip(times, values)):
+            new_t = t * scale + offset
+            cmds.setKeyframe(plug, time=new_t, value=v)
+
+            tan_kw = {"time": (new_t, new_t)}
+            if i < len(in_tan_types):  tan_kw["inTangentType"]  = in_tan_types[i]
+            if i < len(out_tan_types): tan_kw["outTangentType"] = out_tan_types[i]
+            cmds.keyTangent(plug, **tan_kw)
+
+            w_kw = {"time": (new_t, new_t)}
+            if i < len(in_angles):   w_kw["inAngle"]   = in_angles[i]
+            if i < len(out_angles):  w_kw["outAngle"]  = out_angles[i]
+            if i < len(in_weights):  w_kw["inWeight"]  = in_weights[i]
+            if i < len(out_weights): w_kw["outWeight"] = out_weights[i]
+            if len(w_kw) > 1:
+                try:
+                    cmds.keyTangent(plug, **w_kw)
+                except Exception:
+                    pass
+
+        anim_curves = cmds.listConnections(plug, type="animCurve", source=True) or []
+        if anim_curves:
+            cmds.setInfinity(anim_curves[0], preInfinite=pre_inf, postInfinite=post_inf)
+
+        applied.append(attr)
+
+    # ── Apply static values ──
+    for attr, val in static_data.items():
+        plug = "{}.{}".format(node, attr)
+        if not cmds.objExists(plug):
+            skipped.append("{} (not found)".format(attr))
+            continue
+        if cmds.getAttr(plug, lock=True):
+            skipped.append("{} (locked)".format(attr))
+            continue
+        try:
+            cmds.setAttr(plug, val)
+            applied_static.append(attr)
+        except Exception as e:
+            skipped.append("{} (setAttr failed: {})".format(attr, e))
+
+    print("\n✔ Face anim imported from {}".format(file_path))
+    print("  Keyed applied  : {}".format(len(applied)))
+    print("  Static applied : {}".format(len(applied_static)))
+    if skipped:
+        print("  Skipped : {}".format(", ".join(skipped)))
+
+
+def launch_ui():
+    win = "faceAnimTransferWin"
+    if cmds.window(win, exists=True):
+        cmds.deleteUI(win)
+
+    cmds.window(win, title="Face Anim Transfer", widthHeight=(380, 290))
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=6, columnOffset=("both", 14))
+    cmds.separator(height=12)
+
+    # ── EXPORT ──
+    cmds.text(label="EXPORT  —  run in source scene", align="left", font="boldLabelFont")
+    cmds.separator(height=4, style="none")
+    cmds.text(label="Source control node:", align="left")
+    export_field = cmds.textField(placeholderText="e.g.  lion10:face_main_ctrl")
+    cmds.separator(height=4, style="none")
+    cmds.button(
+        label="Export Animation…", height=38,
+        backgroundColor=(0.25, 0.55, 0.35),
+        command=lambda x: export_face_anim_node(
+            node=cmds.textField(export_field, q=True, text=True)
+        )
+    )
+
+    cmds.separator(height=14)
+
+    # ── IMPORT ──
+    cmds.text(label="IMPORT  —  run in target scene", align="left", font="boldLabelFont")
+    cmds.separator(height=4, style="none")
+    cmds.text(label="Target control node:", align="left")
+    import_field = cmds.textField(placeholderText="e.g.  lion:face_main_ctrl")
+    cmds.separator(height=4, style="none")
+    cmds.button(
+        label="Import Animation…", height=38,
+        backgroundColor=(0.25, 0.40, 0.65),
+        command=lambda x: import_face_anim_node(
+            node=cmds.textField(import_field, q=True, text=True)
+        )
+    )
+
+    cmds.separator(height=12)
+    cmds.showWindow(win)
+
+
+launch_ui()
