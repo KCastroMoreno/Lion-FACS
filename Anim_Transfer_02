@@ -1,0 +1,522 @@
+"""
+Face Animation Transfer Tool — face_main_ctrl
+===============================================
+Features:
+  - Export a specific frame range
+  - Import with a frame offset (animation starts at target frame)
+  - Auto zero-key padding: keys all controls to 0 five frames before
+    and five frames after the animation range on import
+  - Transfers both keyed animation and static values
+
+Usage:
+    launch_ui()
+"""
+
+import maya.cmds as cmds
+import json
+
+# ─────────────────────────────────────────────────────────────
+# All known facial attributes on face_main_ctrl
+# ─────────────────────────────────────────────────────────────
+FACE_ATTRS = [
+    # STICKY LIPS / MOUTH
+    "stickyLips",
+    "MouthUpperSide", "MouthUpperUpDown",
+    "MouthLowerSide", "MouthLowerUpDown",
+
+    # CHIN
+    "lChinRaiser", "rChinRaiser",
+
+    # NECK
+    "lPlatysma", "rPlatysma",
+    "SwallowUpDown", "SwallowInOut",
+
+    # HEAD
+    "ScalpSlide",
+    "lTemporalis", "rTemporalis",
+    "lFrontalis", "rFrontalis",
+    "GravityFrontBack", "GravitySide", "GravityUpDown",
+
+    # EARS
+    "lEarUpDown", "rEarUpDown",
+    "lEarForwardBack", "rEarForwardBack",
+    "lEarInOutRotation", "rEarInOutRotation",
+
+    # BROWS
+    "lInnerBrowRaiser", "rInnerBrowRaiser",
+    "lOuterBrowRaiser", "rOuterBrowRaiser",
+    "lBrowLowerer", "rBrowLowerer",
+    "lProcerus", "rProcerus",
+
+    # EYES
+    "lEyeOpenClosed", "rEyeOpenClosed",
+    "lLidTightenerUpper", "rLidTightenerUpper",
+    "lLidTightenerLower", "rLidTightenerLower",
+    "lSquintUpper", "rSquintUpper",
+    "lSquintLower", "rSquintLower",
+    "lEyelidInnerLowerUpDown", "rEyelidInnerLowerUpDown",
+    "lEyelidOuterLowerUpDown", "rEyelidOuterLowerUpDown",
+    "lEyelidInnerUpperUp", "rEyelidInnerUpperUp",
+    "lEyelidOuterUpperUp", "rEyelidOuterUpperUp",
+    "lEyelidInnerUpperRotate", "rEyelidInnerUpperRotate",
+    "lEyelidOuterUpperRotate", "rEyelidOuterUpperRotate",
+
+    # EYES AIM
+    "lEyeUp", "rEyeUp",
+    "lEyeDown", "rEyeDown",
+    "lEyeIn", "rEyeIn",
+    "lEyeOut", "rEyeOut",
+
+    # IRIS
+    "lPupilDilate", "rPupilDilate",
+    "lIrisScale", "rIrisScale",
+
+    # NOSE
+    "NoseSide", "NoseUpDown",
+    "lNoseWrinkler", "rNoseWrinkler",
+    "lNoseWrinklerNoseBridge", "rNoseWrinklerNoseBridge",
+    "lNoseWrinklerLipFront", "rNoseWrinklerLipFront",
+    "lNostrilDilator", "rNostrilDilator",
+    "lNostrilCompressor", "rNostrilCompressor",
+    "lNostrilRotation", "rNostrilRotation",
+    "lNoseStretch", "rNoseStretch",
+    "lNoseOuterUp", "rNoseOuterUp",
+    "lNoseTenseUpper", "rNoseTenseUpper",
+    "lNoseTenseLower", "rNoseTenseLower",
+    "lCleftSqueezeWiden", "rCleftSqueezeWiden",
+    "NoseBridgeSlideSide", "NoseBridgeSlideUpDown",
+    "lMuzzleFatFrontBack", "rMuzzleFatFrontBack",
+    "lMuzzleFatUpDown", "rMuzzleFatUpDown",
+
+    # CHEEKS
+    "lCheekRaiser", "rCheekRaiser",
+    "lCheekPuffFront", "rCheekPuffFront",
+    "lCheekPuffBack", "rCheekPuffBack",
+    "lCheekSuck", "rCheekSuck",
+    "lCheekSlideFrontBack", "rCheekSlideFrontBack",
+    "lCheekSlideUpDown", "rCheekSlideUpDown",
+
+    # JAW
+    "JawOpen", "JawThrust", "JawSwing",
+    "lMasseterFlexRelax", "rMasseterFlexRelax",
+
+    # LIP CORNERS
+    "lSharpLipPuller", "rSharpLipPuller",
+    "lLipCornerPuller", "rLipCornerPuller",
+    "lDimpler", "rDimpler",
+    "lLipStretcher", "rLipStretcher",
+    "lLipCornerDepressor", "rLipCornerDepressor",
+
+    # LIP MAIN
+    "lUpperLipRaiserFront", "rUpperLipRaiserFront",
+    "lUpperLipRaiserBack", "rUpperLipRaiserBack",
+    "lLowerLipDepressorFront", "rLowerLipDepressorFront",
+    "lLowerLipDepressorBack", "rLowerLipDepressorBack",
+    "lLipPuckererUpper", "rLipPuckererUpper",
+    "lLipPuckererLower", "rLipPuckererLower",
+    "lLipFunnelerUpper", "rLipFunnelerUpper",
+    "lLipFunnelerLower", "rLipFunnelerLower",
+    "lLipTightenerUpper", "rLipTightenerUpper",
+    "lLipTightenerLower", "rLipTightenerLower",
+    "lLipPuffFrontUpper", "rLipPuffFrontUpper",
+    "lLipPuffFrontLower", "rLipPuffFrontLower",
+    "lLipPuffBackUpper", "rLipPuffBackUpper",
+    "lLipPuffBackLower", "rLipPuffBackLower",
+
+    # LIP TWEAKERS
+    "lLipCreaseFront", "rLipCreaseFront",
+    "lLipCreaseBack", "rLipCreaseBack",
+    "lLipRollFrontUpper", "rLipRollFrontUpper",
+    "lLipRollFrontLower", "rLipRollFrontLower",
+    "lLipRollMidUpper", "rLipRollMidUpper",
+    "lLipRollMidLower", "rLipRollMidLower",
+    "lLipRollBackUpper", "rLipRollBackUpper",
+    "lLipRollBackLower", "rLipRollBackLower",
+    "lGumFront", "rGumFront",
+    "lGumMid", "rGumMid",
+    "lGumBack", "rGumBack",
+    "lLipCornerSqueeze", "rLipCornerSqueeze",
+    "LipUpperSide", "LipUpperUpDown",
+    "LipLowerSide", "LipLowerUpDown",
+    "lLipsTogetherUpper", "rLipsTogetherUpper",
+    "lLipsTogetherLower", "rLipsTogetherLower",
+    "lUpperLipCollision", "rUpperLipCollision",
+    "lLipRelax", "rLipRelax",
+]
+
+
+# ─────────────────────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────────────────────
+
+def _get_curve_data(node, attr, frame_start=None, frame_end=None):
+    plug = "{}.{}".format(node, attr)
+    if not cmds.objExists(plug):
+        return None
+
+    anim_curves = cmds.listConnections(plug, type="animCurve", source=True) or []
+    if not anim_curves:
+        return None
+
+    curve = anim_curves[0]
+
+    if frame_start is not None and frame_end is not None:
+        keyframes = cmds.keyframe(
+            curve, query=True,
+            time=(frame_start, frame_end),
+            timeChange=True, valueChange=True
+        )
+    else:
+        keyframes = cmds.keyframe(curve, query=True, timeChange=True, valueChange=True)
+
+    if not keyframes:
+        return None
+
+    times  = keyframes[0::2]
+    values = keyframes[1::2]
+
+    time_range    = (times[0], times[-1])
+    in_tan_types  = cmds.keyTangent(curve, q=True, time=time_range, inTangentType=True)  or []
+    out_tan_types = cmds.keyTangent(curve, q=True, time=time_range, outTangentType=True) or []
+    in_angles     = cmds.keyTangent(curve, q=True, time=time_range, inAngle=True)        or []
+    out_angles    = cmds.keyTangent(curve, q=True, time=time_range, outAngle=True)       or []
+    in_weights    = cmds.keyTangent(curve, q=True, time=time_range, inWeight=True)       or []
+    out_weights   = cmds.keyTangent(curve, q=True, time=time_range, outWeight=True)      or []
+
+    return {
+        "times":         times,
+        "values":        values,
+        "in_tan_types":  in_tan_types,
+        "out_tan_types": out_tan_types,
+        "in_angles":     in_angles,
+        "out_angles":    out_angles,
+        "in_weights":    in_weights,
+        "out_weights":   out_weights,
+        "pre_infinity":  (cmds.setInfinity(curve, q=True, preInfinite=True)  or ["constant"])[0],
+        "post_infinity": (cmds.setInfinity(curve, q=True, postInfinite=True) or ["constant"])[0],
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# EXPORT
+# ─────────────────────────────────────────────────────────────
+
+def export_face_anim_node(node, file_path=None, frame_start=None, frame_end=None):
+    node = node.strip().rstrip(".")
+    if not cmds.objExists(node):
+        cmds.warning("Node not found: {}".format(node))
+        return
+
+    if file_path is None:
+        result = cmds.fileDialog2(
+            fileFilter="JSON Files (*.json);;All Files (*.*)",
+            dialogStyle=2, fileMode=0,
+            caption="Save Face Animation"
+        )
+        if not result:
+            return
+        file_path = result[0]
+
+    anim_data   = {}
+    static_data = {}
+    not_found   = []
+
+    for attr in FACE_ATTRS:
+        plug = "{}.{}".format(node, attr)
+        if not cmds.objExists(plug):
+            not_found.append(attr)
+            continue
+        data = _get_curve_data(node, attr, frame_start, frame_end)
+        if data:
+            anim_data[attr] = data
+        else:
+            try:
+                val = cmds.getAttr(plug)
+                static_data[attr] = val
+            except Exception:
+                pass
+
+    with open(file_path, "w") as f:
+        json.dump({
+            "node":        node,
+            "frame_start": frame_start,
+            "frame_end":   frame_end,
+            "attrs":       anim_data,
+            "static":      static_data
+        }, f, indent=2)
+
+    range_str = "{} - {}".format(int(frame_start), int(frame_end)) if frame_start is not None else "all frames"
+    print("\n*** Face anim exported -> {}".format(file_path))
+    print("  Frame range  : {}".format(range_str))
+    print("  Keyed attrs  : {}".format(len(anim_data)))
+    print("  Static attrs : {}".format(len(static_data)))
+    if not_found:
+        print("  Not on node  : {}".format(", ".join(not_found)))
+
+
+# ─────────────────────────────────────────────────────────────
+# IMPORT
+# ─────────────────────────────────────────────────────────────
+
+def import_face_anim_node(node, file_path=None, import_offset=None,
+                          zero_pad=True, pad_frames=5, replace=True):
+    node = node.strip().rstrip(".")
+    if not cmds.objExists(node):
+        cmds.warning("Node not found: {}".format(node))
+        return
+
+    if file_path is None:
+        result = cmds.fileDialog2(
+            fileFilter="JSON Files (*.json);;All Files (*.*)",
+            dialogStyle=2, fileMode=1,
+            caption="Load Face Animation"
+        )
+        if not result:
+            return
+        file_path = result[0]
+
+    with open(file_path, "r") as f:
+        saved = json.load(f)
+
+    anim_data   = saved.get("attrs",  {})
+    static_data = saved.get("static", {})
+
+    # Compute time offset so animation starts at import_offset
+    all_times = []
+    for data in anim_data.values():
+        all_times.extend(data.get("times", []))
+
+    if all_times and import_offset is not None:
+        original_start = min(all_times)
+        time_offset    = import_offset - original_start
+    else:
+        time_offset = 0
+
+    applied        = []
+    applied_static = []
+    skipped        = []
+
+    # ── Keyed animation ──
+    for attr, data in anim_data.items():
+        plug = "{}.{}".format(node, attr)
+        if not cmds.objExists(plug):
+            skipped.append("{} (not found)".format(attr))
+            continue
+        if cmds.getAttr(plug, lock=True):
+            skipped.append("{} (locked)".format(attr))
+            continue
+
+        if replace:
+            cmds.cutKey(plug, clear=True)
+
+        times         = data["times"]
+        values        = data["values"]
+        in_tan_types  = data.get("in_tan_types",  [])
+        out_tan_types = data.get("out_tan_types", [])
+        in_angles     = data.get("in_angles",     [])
+        out_angles    = data.get("out_angles",    [])
+        in_weights    = data.get("in_weights",    [])
+        out_weights   = data.get("out_weights",   [])
+        pre_inf       = data.get("pre_infinity",  "constant")
+        post_inf      = data.get("post_infinity", "constant")
+
+        for i, (t, v) in enumerate(zip(times, values)):
+            new_t = t + time_offset
+            cmds.setKeyframe(plug, time=new_t, value=v)
+
+            tan_kw = {"time": (new_t, new_t)}
+            if i < len(in_tan_types):  tan_kw["inTangentType"]  = in_tan_types[i]
+            if i < len(out_tan_types): tan_kw["outTangentType"] = out_tan_types[i]
+            cmds.keyTangent(plug, **tan_kw)
+
+            w_kw = {"time": (new_t, new_t)}
+            if i < len(in_angles):   w_kw["inAngle"]   = in_angles[i]
+            if i < len(out_angles):  w_kw["outAngle"]  = out_angles[i]
+            if i < len(in_weights):  w_kw["inWeight"]  = in_weights[i]
+            if i < len(out_weights): w_kw["outWeight"] = out_weights[i]
+            if len(w_kw) > 1:
+                try:
+                    cmds.keyTangent(plug, **w_kw)
+                except Exception:
+                    pass
+
+        anim_curves = cmds.listConnections(plug, type="animCurve", source=True) or []
+        if anim_curves:
+            cmds.setInfinity(anim_curves[0], preInfinite=pre_inf, postInfinite=post_inf)
+
+        applied.append(attr)
+
+    # ── Static values ──
+    for attr, val in static_data.items():
+        plug = "{}.{}".format(node, attr)
+        if not cmds.objExists(plug):
+            skipped.append("{} (not found)".format(attr))
+            continue
+        if cmds.getAttr(plug, lock=True):
+            skipped.append("{} (locked)".format(attr))
+            continue
+        try:
+            cmds.setAttr(plug, val)
+            applied_static.append(attr)
+        except Exception as e:
+            skipped.append("{} (setAttr failed: {})".format(attr, e))
+
+    # ── Zero padding ──
+    if zero_pad and all_times:
+        actual_start = min(all_times) + time_offset
+        actual_end   = max(all_times) + time_offset
+        pre_frame    = actual_start - pad_frames
+        post_frame   = actual_end   + pad_frames
+
+        for attr in FACE_ATTRS:
+            plug = "{}.{}".format(node, attr)
+            if not cmds.objExists(plug) or cmds.getAttr(plug, lock=True):
+                continue
+            try:
+                # Zero keys before and after
+                cmds.setKeyframe(plug, time=pre_frame,  value=0)
+                cmds.setKeyframe(plug, time=post_frame, value=0)
+
+                # Lock-in first and last frame of the anim
+                if attr in anim_data:
+                    cmds.setKeyframe(plug, time=actual_start, value=anim_data[attr]["values"][0])
+                    cmds.setKeyframe(plug, time=actual_end,   value=anim_data[attr]["values"][-1])
+                elif attr in static_data:
+                    cmds.setKeyframe(plug, time=actual_start, value=static_data[attr])
+                    cmds.setKeyframe(plug, time=actual_end,   value=static_data[attr])
+            except Exception:
+                pass
+
+        print("  Zero padding   : frame {} (pre)  |  frame {} (post)  [{}f pad]".format(
+            int(pre_frame), int(post_frame), pad_frames))
+
+    print("\n*** Face anim imported from {}".format(file_path))
+    if all_times:
+        print("  Anim range     : {} - {}".format(
+            int(min(all_times) + time_offset),
+            int(max(all_times) + time_offset)))
+    print("  Keyed applied  : {}".format(len(applied)))
+    print("  Static applied : {}".format(len(applied_static)))
+    if skipped:
+        print("  Skipped        : {}".format(", ".join(skipped)))
+
+
+# ─────────────────────────────────────────────────────────────
+# UI
+# ─────────────────────────────────────────────────────────────
+
+def _run_export(node_field, start_field, end_field):
+    node = cmds.textField(node_field, q=True, text=True).strip().rstrip(".")
+    if not node:
+        cmds.warning("Please enter a source control node name.")
+        return
+
+    start_str = cmds.textField(start_field, q=True, text=True).strip()
+    end_str   = cmds.textField(end_field,   q=True, text=True).strip()
+
+    frame_start = None
+    frame_end   = None
+
+    if start_str and end_str:
+        try:
+            frame_start = float(start_str)
+            frame_end   = float(end_str)
+        except ValueError:
+            cmds.warning("Frame range must be numbers. Leave both blank to export all keys.")
+            return
+    elif start_str or end_str:
+        cmds.warning("Please fill in BOTH Start and End frames, or leave both blank to export all.")
+        return
+
+    export_face_anim_node(node=node, frame_start=frame_start, frame_end=frame_end)
+
+
+def _run_import(node_field, offset_field, pad_field, zero_pad_cb):
+    node = cmds.textField(node_field, q=True, text=True).strip().rstrip(".")
+    if not node:
+        cmds.warning("Please enter a target control node name.")
+        return
+
+    offset_str = cmds.textField(offset_field, q=True, text=True).strip()
+    pad_str    = cmds.textField(pad_field,    q=True, text=True).strip()
+    do_pad     = cmds.checkBox(zero_pad_cb, q=True, value=True)
+
+    import_offset = None
+    if offset_str:
+        try:
+            import_offset = float(offset_str)
+        except ValueError:
+            cmds.warning("Import start frame must be a number.")
+            return
+
+    pad_frames = 5
+    if pad_str:
+        try:
+            pad_frames = int(pad_str)
+        except ValueError:
+            cmds.warning("Pad frames must be a whole number.")
+            return
+
+    import_face_anim_node(
+        node=node,
+        import_offset=import_offset,
+        zero_pad=do_pad,
+        pad_frames=pad_frames
+    )
+
+
+def launch_ui():
+    win = "faceAnimTransferWin"
+    if cmds.window(win, exists=True):
+        cmds.deleteUI(win)
+
+    cmds.window(win, title="Face Anim Transfer", widthHeight=(400, 440))
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=6, columnOffset=("both", 14))
+    cmds.separator(height=12)
+
+    # ── EXPORT ──
+    cmds.text(label="EXPORT  -  run in source scene", align="left", font="boldLabelFont")
+    cmds.separator(height=4, style="none")
+    cmds.text(label="Source control node:", align="left")
+    export_node_field = cmds.textField(placeholderText="e.g.  lion10:face_main_ctrl")
+    cmds.separator(height=4, style="none")
+    cmds.text(label="Frame range  (leave blank = export all keys):", align="left")
+    cmds.rowLayout(numberOfColumns=3, columnWidth3=(150, 24, 150), adjustableColumn=2)
+    export_start_field = cmds.textField(placeholderText="Start  e.g. 100")
+    cmds.text(label="  to  ", align="center")
+    export_end_field   = cmds.textField(placeholderText="End  e.g. 300")
+    cmds.setParent("..")
+    cmds.separator(height=6, style="none")
+    cmds.button(
+        label="Export Animation...", height=38,
+        backgroundColor=(0.25, 0.55, 0.35),
+        command=lambda x: _run_export(export_node_field, export_start_field, export_end_field)
+    )
+
+    cmds.separator(height=18)
+
+    # ── IMPORT ──
+    cmds.text(label="IMPORT  -  run in target scene", align="left", font="boldLabelFont")
+    cmds.separator(height=4, style="none")
+    cmds.text(label="Target control node:", align="left")
+    import_node_field = cmds.textField(placeholderText="e.g.  lion:face_main_ctrl")
+    cmds.separator(height=4, style="none")
+    cmds.text(label="Import start frame  (leave blank = keep original frames):", align="left")
+    import_offset_field = cmds.textField(placeholderText="e.g.  500")
+    cmds.separator(height=4, style="none")
+    zero_pad_cb = cmds.checkBox(label="Add zero padding keys before and after anim", value=True)
+    cmds.separator(height=2, style="none")
+    cmds.text(label="Padding frames (before / after):", align="left")
+    import_pad_field = cmds.textField(text="5")
+    cmds.separator(height=6, style="none")
+    cmds.button(
+        label="Import Animation...", height=38,
+        backgroundColor=(0.25, 0.40, 0.65),
+        command=lambda x: _run_import(import_node_field, import_offset_field, import_pad_field, zero_pad_cb)
+    )
+
+    cmds.separator(height=12)
+    cmds.showWindow(win)
+
+
+launch_ui()
