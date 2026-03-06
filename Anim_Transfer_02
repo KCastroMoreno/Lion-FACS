@@ -259,7 +259,7 @@ def export_face_anim_node(node, file_path=None, frame_start=None, frame_end=None
 # ─────────────────────────────────────────────────────────────
 
 def import_face_anim_node(node, file_path=None, import_offset=None,
-                          zero_pad=True, pad_frames=5, replace=True):
+                          zero_pad=True, pad_frames=5):
     node = node.strip().rstrip(".")
     if not cmds.objExists(node):
         cmds.warning("Node not found: {}".format(node))
@@ -296,6 +296,16 @@ def import_face_anim_node(node, file_path=None, import_offset=None,
     applied_static = []
     skipped        = []
 
+    # Work out the full imported time range so we can clear only that window
+    if all_times:
+        import_start = min(all_times) + time_offset
+        import_end   = max(all_times) + time_offset
+        # Also account for the zero pad frames when clearing
+        clear_start  = import_start - pad_frames - 1  if zero_pad else import_start
+        clear_end    = import_end   + pad_frames + 1  if zero_pad else import_end
+    else:
+        clear_start = clear_end = None
+
     # ── Keyed animation ──
     for attr, data in anim_data.items():
         plug = "{}.{}".format(node, attr)
@@ -306,8 +316,9 @@ def import_face_anim_node(node, file_path=None, import_offset=None,
             skipped.append("{} (locked)".format(attr))
             continue
 
-        if replace:
-            cmds.cutKey(plug, clear=True)
+        # Clear only keys within the incoming range — leaves other anims untouched
+        if clear_start is not None:
+            cmds.cutKey(plug, time=(clear_start, clear_end), clear=True)
 
         times         = data["times"]
         values        = data["values"]
@@ -356,6 +367,9 @@ def import_face_anim_node(node, file_path=None, import_offset=None,
             skipped.append("{} (locked)".format(attr))
             continue
         try:
+            # Clear any existing keys in the target range before applying static value
+            if clear_start is not None:
+                cmds.cutKey(plug, time=(clear_start, clear_end), clear=True)
             cmds.setAttr(plug, val)
             applied_static.append(attr)
         except Exception as e:
@@ -515,8 +529,77 @@ def launch_ui():
         command=lambda x: _run_import(import_node_field, import_offset_field, import_pad_field, zero_pad_cb)
     )
 
+    cmds.separator(height=18)
+
+    # ── RESET ──
+    cmds.text(label="RESET  -  clear all anim and zero controls", align="left", font="boldLabelFont")
+    cmds.separator(height=4, style="none")
+    cmds.text(label="Control node to reset:", align="left")
+    reset_node_field = cmds.textField(placeholderText="e.g.  lion:face_main_ctrl")
+    cmds.separator(height=6, style="none")
+    cmds.button(
+        label="Clear All Anim + Zero Controls", height=38,
+        backgroundColor=(0.55, 0.25, 0.25),
+        command=lambda x: _run_reset(reset_node_field)
+    )
+
     cmds.separator(height=12)
     cmds.showWindow(win)
+
+
+def _run_reset(node_field):
+    node = cmds.textField(node_field, q=True, text=True).strip().rstrip(".")
+    if not node:
+        cmds.warning("Please enter a control node name to reset.")
+        return
+
+    confirm = cmds.confirmDialog(
+        title="Clear All Animation",
+        message="This will delete ALL keyframes and set all controls to 0 on:\n\n{}\n\nThis cannot be undone. Continue?".format(node),
+        button=["Yes, Clear Everything", "Cancel"],
+        defaultButton="Cancel",
+        cancelButton="Cancel",
+        dismissString="Cancel"
+    )
+    if confirm != "Yes, Clear Everything":
+        return
+
+    reset_face_anim(node)
+
+
+def reset_face_anim(node):
+    node = node.strip().rstrip(".")
+    if not cmds.objExists(node):
+        cmds.warning("Node not found: {}".format(node))
+        return
+
+    cleared = []
+    zeroed  = []
+    skipped = []
+
+    for attr in FACE_ATTRS:
+        plug = "{}.{}".format(node, attr)
+        if not cmds.objExists(plug):
+            continue
+        if cmds.getAttr(plug, lock=True):
+            skipped.append(attr)
+            continue
+        try:
+            cmds.cutKey(plug, clear=True)
+            cleared.append(attr)
+        except Exception:
+            pass
+        try:
+            cmds.setAttr(plug, 0)
+            zeroed.append(attr)
+        except Exception:
+            pass
+
+    print("\n*** Reset complete on {}".format(node))
+    print("  Keys cleared : {}".format(len(cleared)))
+    print("  Zeroed       : {}".format(len(zeroed)))
+    if skipped:
+        print("  Skipped (locked) : {}".format(", ".join(skipped)))
 
 
 launch_ui()
