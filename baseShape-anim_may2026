@@ -1,0 +1,504 @@
+import maya.cmds as cmds
+#FII good
+
+# Global config
+C_name = 'lion:'
+Ctrl_name = 'face_main_ctrl.'
+
+
+# Shape list — one entry per shape GROUP.
+# L_R_Check will try the name as-is first; if it doesn't exist it auto-tries l+r prefix.
+# So bilateral shapes (lJawSwing/rJawSwing) are listed as just 'JawSwing' and both fire together.
+# UL suffix splits into Upper+Lower automatically.
+# X suffix keys at -100 instead of 100.
+
+Ani_shapeNames = [
+    # --- JAW ---
+    'JawOpen', 'JawOpenX', 'JawClosed',
+    'JawThrust', 'JawThrustX', 'JawRetract',
+    'JawSwing',                             # -> lJawSwing, rJawSwing
+    'JawDrop',
+    'MasseterFlexRelax',                    # +100 = Flex  -> lMasseterFlexRelax, rMasseterFlexRelax
+    'MasseterFlexRelaxX',                   # -100 = Relax -> lMasseterFlexRelax, rMasseterFlexRelax
+
+    # --- EYE ---
+    'EyeOpenClosed',                        # +100 = Open  -> lEyeOpenClosed, rEyeOpenClosed
+    'EyeOpenClosedX',                       # -100 = Closed
+    'UpperLidRaiser',                       # -> lUpperLidRaiser, rUpperLidRaiser
+    'LidTightenerUL',                       # -> lLidTightenerUpper/Lower, rLidTightenerUpper/Lower
+    'SquintUpper',                          # -> lSquintUpper, rSquintUpper
+    'SquintLower',                          # -> lSquintLower, rSquintLower
+    'EyeIn', 'EyeUp', 'EyeOut', 'EyeDown',
+
+    # --- BROW ---
+    'Procerus',                             # -> lProcerus, rProcerus
+    'BrowLowerer',                          # -> lBrowLowerer, rBrowLowerer
+    'InnerBrowRaiser',                      # -> lInnerBrowRaiser, rInnerBrowRaiser
+    'OuterBrowRaiser',                      # -> lOuterBrowRaiser, rOuterBrowRaiser
+
+    # --- LIP CORNER ---
+    'LipCornerPuller',                      # -> lLipCornerPuller, rLipCornerPuller
+    'SharpLipPuller',                       # -> lSharpLipPuller, rSharpLipPuller
+    'LipCornerDepressor',                   # -> lLipCornerDepressor, rLipCornerDepressor
+    'Dimpler',                              # -> lDimpler, rDimpler
+    'LipStretcher',                         # -> lLipStretcher, rLipStretcher
+    'LipRelax',                             # -> lLipRelax, rLipRelax
+
+    # --- UPPER / LOWER LIP ---
+    'UpperLipRaiserFront',                  # -> lUpperLipRaiserFront, rUpperLipRaiserFront
+    'UpperLipRaiserBack',                   # -> lUpperLipRaiserBack, rUpperLipRaiserBack
+    'LowerLipDepressor',                    # -> lLowerLipDepressor, rLowerLipDepressor
+    'LowerLipDepressorFront',               # -> lLowerLipDepressorFront, rLowerLipDepressorFront
+    'LowerLipDepressorBack',                # -> lLowerLipDepressorBack, rLowerLipDepressorBack
+
+    # --- LIP PUCKERER ---
+    'LipPuckererUpper',                     # -> lLipPuckererUpper, rLipPuckererUpper
+    'LipPuckererLower',                     # -> lLipPuckererLower, rLipPuckererLower
+
+    # --- LIP FUNNELER ---
+    'LipFunnelerUpper',                     # -> lLipFunnelerUpper, rLipFunnelerUpper
+    'LipFunnelerLower',                     # -> lLipFunnelerLower, rLipFunnelerLower
+
+    # --- LIP SUCK ---
+    'LipSuckUpper',                         # -> lLipSuckUpper, rLipSuckUpper
+    'LipSuckLower',                         # -> lLipSuckLower, rLipSuckLower
+
+    # --- LIP PUFF ---
+    'CheekPuffFront',                       # -> lCheekPuffFront, rCheekPuffFront
+    'CheekPuffBack',                        # -> lCheekPuffBack, rCheekPuffBack
+    'LipPuffFrontUpper',                    # -> lLipPuffFrontUpper, rLipPuffFrontUpper
+    'LipPuffFrontLower',                    # -> lLipPuffFrontLower, rLipPuffFrontLower
+
+    # --- LIP TIGHTENER ---
+    'LipTightenerUpper',                    # -> lLipTightenerUpper, rLipTightenerUpper
+    'LipTightenerLower',                    # -> lLipTightenerLower, rLipTightenerLower
+
+    # --- LIP ROLL ---
+    'LipRollInBackLower',                   # -> lLipRollInBackLower, rLipRollInBackLower
+    'LipRollInBackUpper',                   # -> lLipRollInBackUpper, rLipRollInBackUpper
+
+    # --- LIPS TOGETHER ---
+    'LipsTogetherLower',                    # -> lLipsTogetherLower, rLipsTogetherLower
+    'LipsTogetherUpper',                    # -> lLipsTogetherUpper, rLipsTogetherUpper
+
+    # --- LIP COLLISION ---
+    'UpperLipCollision',                    # -> lUpperLipCollision, rUpperLipCollision
+
+    # --- MOUTH SIDE / UPDOWN ---
+    'MouthUpperSide',                       # +100 = right, -100 = left (center attr)
+    'MouthUpperSideX',
+    'MouthLowerSide',                       # +100 = right, -100 = left (center attr)
+    'MouthLowerSideX',
+    'MouthUpperUpDown',                     # +100 = up,    -100 = down (center attr)
+    'MouthUpperUpDownX',
+    'MouthLowerUpDown',                     # +100 = up,    -100 = down (center attr)
+    'MouthLowerUpDownX',
+
+    # --- CHIN ---
+    'ChinRaiser',                           # -> lChinRaiser, rChinRaiser
+    'ChinRaiserUpperLip',                   # -> lChinRaiserUpperLip, rChinRaiserUpperLip
+
+    # --- CHEEK ---
+    'CheekRaiser',                          # -> lCheekRaiser, rCheekRaiser
+    'CheekSuck',                            # -> lCheekSuck, rCheekSuck
+    'CheekSuckFront',                       # -> lCheekSuckFront, rCheekSuckFront
+    'CheekSuckBack',                        # -> lCheekSuckBack, rCheekSuckBack
+
+    # --- NOSE ---
+    'NoseWrinkler',                         # -> lNoseWrinkler, rNoseWrinkler
+    'NostrilDilator',                       # -> lNostrilDilator, rNostrilDilator
+    'NostrilCompressor',                    # -> lNostrilCompressor, rNostrilCompressor
+    'NoseTense',                            # -> lNoseTense, rNoseTense
+    'CleftSqueeze',                         # -> lCleftSqueeze, rCleftSqueeze
+    'CleftWiden',                           # -> lCleftWiden, rCleftWiden
+
+    # --- MUZZLE ---
+    'MuzzleFatRollDown',                    # -> lMuzzleFatRollDown, rMuzzleFatRollDown
+    'MuzzleFatRollUp',                      # -> lMuzzleFatRollUp, rMuzzleFatRollUp
+
+    # --- NECK / PLATYSMA ---
+    'PlatysmaInner',                        # -> lPlatysmaInner, rPlatysmaInner
+    'PlatysmaOuter',                        # -> lPlatysmaOuter, rPlatysmaOuter
+    'Platysma',                             # -> lPlatysma, rPlatysma
+
+    # --- SWALLOW ---
+    'SwallowInOut',                         # +100 = SwallowOut
+    'SwallowInOutX',                        # -100 = SwallowIn
+    'SwallowUpDown',                        # +100 = SwallowUp
+    'SwallowUpDownX',                       # -100 = SwallowDown
+
+    # --- HEAD / EAR / TEMPORALIS ---
+    'ScalpSlide',                           # center attr, positive only
+    'Temporalis',                           # -> lTemporalis, rTemporalis
+    'EarUpDown',                            # +100 = Up   -> lEarUpDown, rEarUpDown
+    'EarUpDownX',                           # -100 = Down
+    'EarForwardBack',                       # +100 = Fwd  -> lEarForwardBack, rEarForwardBack
+    'EarForwardBackX',                      # -100 = Back
+    'EarInOutRotation',                     # +100 = Out  -> lEarInOutRotation, rEarInOutRotation
+    'EarInOutRotationX',                    # -100 = In
+]
+
+
+def UL_check(nameUL):
+    """Return list of shapes, converting UL -> Lower+Upper"""
+    if nameUL.endswith('UL'):
+        base = nameUL[:-2]
+        return [base + 'Lower', base + 'Upper']
+    return [nameUL]
+
+def L_R_Check(nameLR_list):
+    """Return shapes with Face:face_main_ctrl. prefix.
+       If shape exists as-is -> return it (single/center shape).
+       Else -> return l/r prefix variations (bilateral pair, fired together).
+    """
+    result_shapes = []
+    for shape in nameLR_list:
+        full_shape = C_name + Ctrl_name + shape
+        if cmds.objExists(full_shape):
+            result_shapes.append(full_shape)
+        else:
+            result_shapes.append(C_name + Ctrl_name + 'l' + shape)
+            result_shapes.append(C_name + Ctrl_name + 'r' + shape)
+    return result_shapes
+
+def get_short_attr(full_attr):
+    """Strip 'Face:face_main_ctrl.' prefix to get bare attribute name."""
+    prefix = C_name + Ctrl_name
+    if full_attr.startswith(prefix):
+        return full_attr[len(prefix):]
+    return full_attr
+
+
+def build_resolved_shape_pairs():
+    """
+    Walk Ani_shapeNames, resolve each to existing character attrs.
+    l/r siblings resolve into the same pair so they key simultaneously.
+    Returns list of dicts: {char_attrs, hud_names, key_value}
+    """
+    pairs = []
+    for name in Ani_shapeNames:
+        if name.endswith('X'):
+            base = name[:-1]
+            key_value = -100
+        else:
+            base = name
+            key_value = 100
+
+        UL_shapes   = UL_check(base)
+        full_shapes = L_R_Check(UL_shapes)
+        existing    = [s for s in full_shapes if cmds.objExists(s)]
+
+        if not existing:
+            print('[Skip] No existing attributes found for: ' + name)
+            continue
+
+        hud_names = [get_short_attr(s) for s in existing]
+
+        pairs.append({
+            'char_attrs': existing,
+            'hud_names':  hud_names,
+            'key_value':  key_value
+        })
+
+    return pairs
+
+
+def animate_shape_keys(pairs):
+    """Animate each resolved shape group sequentially: 0->value->0."""
+    current_time = int(cmds.textField('b8', q=1, tx=1))
+    for pair in pairs:
+        key_shape_group(pair['char_attrs'], pair['key_value'], current_time)
+        current_time += 10
+
+
+def key_shape_group(shape_list, key_value, start_frame):
+    """Key all shapes in the group at the same time.
+       If a shape has an inverted range (max=0), auto-flips to negative value."""
+    for shape in shape_list:
+        try:
+            cmds.setAttr(shape, 0)
+            cmds.setKeyframe(shape, t=start_frame, v=0)
+        except Exception as e:
+            print("[Warning] key@0 failed for " + shape + ": " + str(e))
+    for shape in shape_list:
+        try:
+            cmds.setAttr(shape, key_value)
+            cmds.setKeyframe(shape, t=start_frame + 5, v=key_value)
+        except:
+            try:
+                alt_value = -abs(key_value)
+                cmds.setAttr(shape, alt_value)
+                cmds.setKeyframe(shape, t=start_frame + 5, v=alt_value)
+                print("[Info] " + shape + " keyed at " + str(alt_value) + " (inverted range)")
+            except Exception as e2:
+                print("[Warning] key@value failed for " + shape + ": " + str(e2))
+    for shape in shape_list:
+        try:
+            cmds.setAttr(shape, 0)
+            cmds.setKeyframe(shape, t=start_frame + 10, v=0)
+        except Exception as e:
+            print("[Warning] key@0 return failed for " + shape + ": " + str(e))
+
+
+def reset_all_shapes(shape_list):
+    """Delete all keys and reset all shapes to 0."""
+    all_shapes = []
+    for name in shape_list:
+        UL_shapes    = UL_check(name.replace('X', ''))
+        Final_shapes = L_R_Check(UL_shapes)
+        all_shapes.extend(Final_shapes)
+
+    all_shapes = list(set(all_shapes))
+    for shape in all_shapes:
+        if cmds.objExists(shape):
+            try:
+                cmds.cutKey(shape)
+                cmds.setAttr(shape, 0)
+            except:
+                pass
+
+
+##############################################################################################    HUD SHAPES
+
+def hud_attr_path(attr_name):
+    return 'HUDkcm_blendShape.' + attr_name
+
+
+def cleanup_scene():
+    if cmds.objExists('HUDkcm_cube'):
+        cmds.delete('HUDkcm_cube')
+    if cmds.objExists('HUDkcm_blendShape'):
+        cmds.delete('HUDkcm_blendShape')
+    if cmds.headsUpDisplay('HUDShapeNames', exists=True):
+        cmds.headsUpDisplay('HUDShapeNames', remove=True)
+    try:
+        cmds.headsUpDisplay(block=7, rem=True)
+    except:
+        pass
+    print("Cleaned up cube and HUD.")
+
+
+def create_hud_cube_and_blendshape(hud_target_names):
+    """Create HUD cube with blendShape targets matching resolved char attr names."""
+    base_cube = cmds.polyCube(name='HUDkcm_cube', width=1, height=1, depth=1)[0]
+
+    targets = []
+    for name in hud_target_names:
+        tgt = cmds.duplicate(base_cube, name=name)[0]
+        targets.append(tgt)
+
+    blend_node = cmds.blendShape(targets, base_cube, name='HUDkcm_blendShape')[0]
+    cmds.delete(targets)
+    print("Created HUD blendShape with " + str(len(hud_target_names)) + " targets.")
+
+
+def key_hud_shapes(pairs, start_time):
+    """Key HUD cube attrs in sync with character attrs."""
+    current_time = start_time
+    for pair in pairs:
+        for hud_name in pair['hud_names']:
+            attr = hud_attr_path(hud_name)
+            if not cmds.objExists(attr):
+                print('[Skip] Missing HUD attribute: ' + attr)
+                continue
+            cmds.setKeyframe(attr, value=0,   t=current_time)
+            cmds.setKeyframe(attr, value=100, t=current_time + 5)
+            cmds.setKeyframe(attr, value=0,   t=current_time + 10)
+        current_time += 10
+    return current_time
+
+
+def get_active_shapes_from_whitelist():
+    """Read active HUD cube attrs for the viewport HUD display."""
+    node = 'HUDkcm_blendShape'
+    if not cmds.objExists(node):
+        return ''
+
+    attrs = cmds.listAttr(node, keyable=True) or []
+    active_shapes = []
+    for attr in attrs:
+        full_attr = node + '.' + attr
+        if cmds.objExists(full_attr):
+            try:
+                if cmds.getAttr(full_attr) > 0.0:
+                    active_shapes.append(attr)
+            except:
+                continue
+
+    return ', '.join(sorted(set(active_shapes)))
+
+
+def show_filtered_hud_display():
+    if cmds.headsUpDisplay('HUDShapeNames', exists=True):
+        cmds.headsUpDisplay('HUDShapeNames', remove=True)
+    try:
+        cmds.headsUpDisplay(block=7, rem=True)
+    except:
+        pass
+
+    cmds.headsUpDisplay(
+        'HUDShapeNames',
+        section=7,
+        block=7,
+        blockSize='medium',
+        dataFontSize='large',
+        dataAlignment='left',
+        command=get_active_shapes_from_whitelist,
+        attachToRefresh=True
+    )
+
+
+def run_hud_animation(pairs):
+    cleanup_scene()
+
+    seen = set()
+    hud_target_names = []
+    for pair in pairs:
+        for n in pair['hud_names']:
+            if n not in seen:
+                seen.add(n)
+                hud_target_names.append(n)
+
+    create_hud_cube_and_blendshape(hud_target_names)
+
+    start_frame     = int(cmds.textField('b8', q=1, tx=1))
+    end_of_hud_keys = key_hud_shapes(pairs, start_frame)
+
+    cmds.playbackOptions(minTime=start_frame, maxTime=end_of_hud_keys)
+    print("Timeline adjusted to " + str(start_frame) + " -> " + str(end_of_hud_keys))
+
+    show_filtered_hud_display()
+
+
+# === Run ===
+
+def KeyShapes():
+    pairs = build_resolved_shape_pairs()
+    animate_shape_keys(pairs)
+    run_hud_animation(pairs)
+
+def DeleteKeyShapes():
+    cleanup_scene()
+    reset_all_shapes(Ani_shapeNames)
+
+
+######
+def Mesh_Duplicate():
+    List_name_dupli = cmds.ls(sl=1)
+    Duplicated_name = str(u", ".join(List_name_dupli))
+    if len(List_name_dupli) >= 2:
+        cmds.warning('Select only one object(A mesh or A group)')
+
+    else:
+        R_mesh        = Duplicated_name + '_R'
+        L_mesh        = Duplicated_name + '_L'
+        Selected_mesh = Duplicated_name
+
+        cmds.duplicate(n=R_mesh)
+        cmds.move(-2.589, 0, 0.1, r=1)
+        cmds.rotate(0, 91, 0, r=1, os=1, fo=1)
+        cmds.select(Selected_mesh)
+        cmds.duplicate(n=L_mesh)
+        cmds.move(2.341, 0, 1.006, r=1)
+        cmds.rotate(0, -46.074, 0, r=1, os=1, fo=1)
+
+        print(Duplicated_name)
+
+        A_name = str(R_mesh) + "_" + str(Selected_mesh) + "_EG"
+        cmds.blendShape(Selected_mesh, R_mesh, n=A_name)
+        cmds.setAttr(A_name + '.' + str(Selected_mesh), 1)
+        cmds.refresh()
+
+        B_name = str(L_mesh) + "_" + str(Selected_mesh) + "_EG"
+        cmds.blendShape(Selected_mesh, L_mesh, n=B_name)
+        cmds.setAttr(B_name + '.' + str(Selected_mesh), 1)
+        cmds.refresh()
+
+
+############### CAMERA
+def Crete_Dailies_Cam():
+    List_name    = cmds.ls(sl=1)
+    Getting_name = str(u", ".join(List_name))
+    Cam_nam      = "dailies_cam"
+
+    if len(List_name) == 0:
+        cmds.warning('Select the main center face, for camera reference point')
+    else:
+        if cmds.objExists(Cam_nam):
+            cmds.delete(Cam_nam)
+        elif cmds.objExists(Cam_nam + '_pointConstraint1'):
+            cmds.delete(Cam_nam + '_pointConstraint1')
+
+        temp_obj = 'temp_dailies_cam_mesh'
+        cmds.duplicate(Getting_name, n=temp_obj)
+        cmds.select(temp_obj)
+        cmds.CenterPivot()
+
+        cmds.camera(n=Cam_nam, fl=50)
+        cmds.rename(Cam_nam + '1', Cam_nam)
+        cmds.pointConstraint(temp_obj, Cam_nam)
+        cmds.setAttr(Cam_nam + '.translateZ', 12)
+        cmds.delete(Cam_nam + '_pointConstraint1')
+        cmds.delete(temp_obj)
+        cmds.lookThru(Cam_nam)
+        for attr in ['.tx','.ty','.tz','.rx','.ry','.rz','.sx','.sy','.sz']:
+            cmds.setAttr(Cam_nam + attr, lock=True)
+
+
+def Lock_Cam():
+    Cam_nam = "dailies_cam"
+    if cmds.objExists(Cam_nam):
+        for attr in ['.tx','.ty','.tz','.rx','.ry','.rz','.sx','.sy','.sz']:
+            cmds.setAttr(Cam_nam + attr, lock=True)
+    else:
+        cmds.warning("Dailies camera doesn't exist")
+
+
+def Unlock_Cam():
+    Cam_nam = "dailies_cam"
+    if cmds.objExists(Cam_nam):
+        for attr in ['.tx','.ty','.tz','.rx','.ry','.rz','.sx','.sy','.sz']:
+            cmds.setAttr(Cam_nam + attr, lock=False)
+    else:
+        cmds.warning("Dailies camera doesn't exist")
+
+
+###########
+def Dailies_Face():
+    winName  = 'Dailies_Face'
+    winTitle = 'Facial Dailies'
+
+    if cmds.window(winName, exists=True):
+        cmds.deleteUI(winName)
+    cmds.window(winName, menuBar=True, title=winTitle, widthHeight=(300, 350))
+    cmds.formLayout('mainC', numberOfDivisions=100)
+
+    cmds.button('b1',  l='Mesh/Grp Duplicate 3', h=30, c='Mesh_Duplicate()')
+    cmds.separator('b2', h=5)
+    cmds.button('b3',  l='Create Camera',   h=30, c='Crete_Dailies_Cam()')
+    cmds.button('b4',  l='Unlock Camera',   h=30, c='Unlock_Cam()')
+    cmds.button('b5',  l='Lock Camera',     h=30, c='Lock_Cam()')
+    cmds.separator('b6', h=5)
+    cmds.text('b7',  l='Start Frame')
+    cmds.textField('b8', tx="0", h=22)
+    cmds.button('b9',  l='Key Shapes',         h=30, c='KeyShapes()')
+    cmds.button('b10', l='Delete Keys Shapes',  h=30, c='DeleteKeyShapes()')
+
+    cmds.formLayout('mainC', edit=True, attachForm=[('b1','left',5),('b1','top',5),('b1','right',5)])
+    cmds.formLayout('mainC', edit=True, attachForm=[('b2','left',5),('b2','top',40),('b2','right',5)])
+    cmds.formLayout('mainC', edit=True, attachForm=[('b3','left',5),('b3','top',50),('b3','right',5)])
+    cmds.formLayout('mainC', edit=True, attachForm=[('b4','left',5),('b4','top',90),('b5','top',90),('b5','right',5)])
+    cmds.formLayout('mainC', edit=True, attachPosition=[('b4','right',5,50),('b5','right',5,100)])
+    cmds.formLayout('mainC', edit=True, attachControl=[('b5','left',5,'b4')])
+    cmds.formLayout('mainC', edit=True, attachForm=[('b6','left',5),('b6','top',125),('b6','right',5)])
+    cmds.formLayout('mainC', edit=True, attachForm=[('b7','left',5),('b7','top',135),('b8','top',135),('b8','right',5)])
+    cmds.formLayout('mainC', edit=True, attachPosition=[('b7','right',5,50),('b8','right',5,100)])
+    cmds.formLayout('mainC', edit=True, attachControl=[('b8','left',5,'b7')])
+    cmds.formLayout('mainC', edit=True, attachForm=[('b9','left',5),('b9','top',165),('b9','right',5)])
+    cmds.formLayout('mainC', edit=True, attachForm=[('b10','left',5),('b10','top',200),('b10','right',5)])
+
+    cmds.showWindow()
+    cmds.window(winName, e=True, width=300, height=250)
+
+
+Dailies_Face()
