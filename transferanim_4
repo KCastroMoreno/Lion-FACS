@@ -32,6 +32,8 @@ FACE_ATTRS = [
     # NECK
     "lPlatysma", "rPlatysma",
     "SwallowUpDown", "SwallowInOut",
+    "lPlatysmaInner", "rPlatysmaInner",
+    "lPlatysmaOuter", "rPlatysmaOuter",
 
     # HEAD
     "ScalpSlide",
@@ -124,6 +126,7 @@ FACE_ATTRS = [
     "lLipPuffFrontLower", "rLipPuffFrontLower",
     "lLipPuffBackUpper", "rLipPuffBackUpper",
     "lLipPuffBackLower", "rLipPuffBackLower",
+    "lLipsTogether", "rLipsTogether",
 
     # LIP TWEAKERS
     "lLipCreaseFront", "rLipCreaseFront",
